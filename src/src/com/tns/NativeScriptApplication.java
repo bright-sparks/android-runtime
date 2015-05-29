@@ -101,7 +101,7 @@ public class NativeScriptApplication extends android.app.Application implements 
 			super.attachBaseContext(param_0);
 		}
 		
-		com.tns.Platform.installSecondaryDexes(this);
+		//com.tns.Platform.installSecondaryDexes(this);
 	}
 
 	public boolean bindService(android.content.Intent param_0, android.content.ServiceConnection param_1, int param_2) {

@@ -12,12 +12,16 @@ import java.io.InvalidClassException;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import com.tns.bindings.ProxyGenerator;
 import com.tns.multidex.MultiDex;
 
+import dalvik.system.DexClassLoader;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
@@ -30,28 +34,26 @@ public class DexFactory
 
 	private static final String SECONDARY_DEX_FOLDER_NAME = "code_cache" + File.separator + "secondary-dexes";
 
-	private String proxyPath;
+	private String dexPath;
+	private String odexPath;
 
 	private ProxyGenerator proxyGenerator;
 
-	private File odexDir;
-
-	private HashSet<String> injectedProxyClasses = new HashSet<String>();
+	private HashMap<String, Class<?>> injectedProxyClasses = new HashMap<String, Class<?>>();
 	
 	private String proxyThumb;
-
+	
 	public DexFactory(Context context)
 	{
 		this.context = context;
 
 		ApplicationInfo applicationInfo = context.getApplicationInfo();
-		proxyPath = applicationInfo.dataDir + File.separator + SECONDARY_DEX_FOLDER_NAME + File.separator;
-		proxyGenerator = new ProxyGenerator(proxyPath);
+		dexPath = applicationInfo.dataDir + File.separator + SECONDARY_DEX_FOLDER_NAME + File.separator;
+		odexPath = applicationInfo.dataDir + File.separator + SECONDARY_DEX_FOLDER_NAME + File.separator + "odex" + File.separator;
+		proxyGenerator = new ProxyGenerator(dexPath);
 		ProxyGenerator.IsLogEnabled = Platform.IsLogEnabled;
-		File dexDir = new File(proxyPath);
-		odexDir = new File(dexDir.getAbsolutePath() + File.separator + "odex" + File.separator);
-		odexDir.mkdirs();
-
+		File dexDir = new File(dexPath);
+		
 		updateProxyThumbAndPurgeCachedProxies(dexDir);
 		proxyGenerator.setProxyThumb(proxyThumb);
 	}
@@ -62,86 +64,67 @@ public class DexFactory
 
 	public Class<?> resolveClass(String name, String className, String[] methodOverrides) throws ClassNotFoundException, IOException
 	{
-		String fullClassName = className.replace("$", "_") + "-" + name;
-
-		if (!injectedProxyClasses.contains(fullClassName))
+		if(className.contains("NativeScriptActivity"))
 		{
-			File proxyFile = getProxyFile(fullClassName);
-
-			if (proxyFile == null)
-			{
-				long startGenTime = System.nanoTime();
-				String proxyFilePath = "";
-
-				if (Platform.IsLogEnabled)
-				{
-					Log.d(Platform.DEFAULT_LOG_TAG, "generating proxy in place");
-				}
-				proxyFilePath = generateProxy(name, className, methodOverrides);
-				proxyFile = new File(proxyFilePath);
-				long stopGenTime = System.nanoTime();
-				totalGenTime += stopGenTime - startGenTime;
-				if (Platform.IsLogEnabled)
-				{
-					Log.d(Platform.DEFAULT_LOG_TAG, "Finished inplace gen took: " + (stopGenTime - startGenTime) / 1000000.0 + "ms");
-					Log.d(Platform.DEFAULT_LOG_TAG, "TotalGenTime:  " + totalGenTime / 1000000.0 + "ms");
-				}
-			}
-
-			long startMultiDexTime = System.nanoTime();
-			List<File> files = new ArrayList<File>();
-			files.add(proxyFile);
-			try
-			{
-				MultiDex.installSecondaryDexes(context.getClassLoader(), odexDir, files);
-				injectedProxyClasses.add(fullClassName);
-			}
-			catch (IllegalArgumentException e)
-			{
-				e.printStackTrace();
-			}
-			catch (IllegalAccessException e)
-			{
-				e.printStackTrace();
-			}
-			catch (NoSuchFieldException e)
-			{
-				e.printStackTrace();
-			}
-			catch (InvocationTargetException e)
-			{
-				e.printStackTrace();
-			}
-			catch (NoSuchMethodException e)
-			{
-				e.printStackTrace();
-			}
-			long stopMultiDexTime = System.nanoTime();
-			totalMultiDexTime += (stopMultiDexTime - startMultiDexTime);
-			if (Platform.IsLogEnabled)
-			{
-				Log.d(Platform.DEFAULT_LOG_TAG, "Finished injecting into multidex: " + proxyFile.getAbsolutePath() + " took: " + (stopMultiDexTime - startMultiDexTime) / 1000000.0 + "ms");
-				Log.d(Platform.DEFAULT_LOG_TAG, "TotalMultiDexTime: " + totalMultiDexTime / 1000000.0 + "ms");
-			}
-
-
-			long startLoadDexTime = System.nanoTime();
-			// String classToProxyName = className.replace("$", "_");
-			// className = classToProxyName;
-
-			Class<?> loaded = context.getClassLoader().loadClass(fullClassName);
-			long stopLoadDexTime = System.nanoTime();
-			totalLoadDexTime += (stopLoadDexTime - startLoadDexTime);
-			if (Platform.IsLogEnabled)
-			{
-				Log.d(Platform.DEFAULT_LOG_TAG, "Finished loading class : " + fullClassName + " took: " + (stopMultiDexTime - startMultiDexTime) / 1000000.0 + "ms");
-				Log.d(Platform.DEFAULT_LOG_TAG, "TotalLoadDexTime: " + totalLoadDexTime / 1000000.0 + "ms");
-			}
-			
-			return loaded;
+			// Do not extend NativeScriptActivity - it is already extended
+			return NativeScriptActivity.class;
+		}
+		
+		String fullClassName = className.replace("$", "_") + "-" + name;
+		Class<?> existingClass = injectedProxyClasses.get(fullClassName); 
+		if(existingClass != null)
+		{
+			return existingClass;
 		}
 
-		return findClass(fullClassName);
+		File proxyFile = getProxyFile(fullClassName);
+		
+		if (proxyFile == null)
+		{
+			long startGenTime = System.nanoTime();
+			String proxyFilePath = "";
+
+			if (Platform.IsLogEnabled)
+			{
+				Log.d(Platform.DEFAULT_LOG_TAG, "generating proxy in place");
+			}
+			proxyFilePath = generateProxy(name, className, methodOverrides);
+			proxyFile = new File(proxyFilePath);
+			long stopGenTime = System.nanoTime();
+			totalGenTime += stopGenTime - startGenTime;
+			if (Platform.IsLogEnabled)
+			{
+				Log.d(Platform.DEFAULT_LOG_TAG, "Finished inplace gen took: " + (stopGenTime - startGenTime) / 1000000.0 + "ms");
+				Log.d(Platform.DEFAULT_LOG_TAG, "TotalGenTime:  " + totalGenTime / 1000000.0 + "ms");
+			}
+		}
+		String dexFilePath = proxyFile.getPath().replace(".dex", "");
+		String jarFilePath = dexFilePath + ".jar";
+		File jarFile = new File(jarFilePath);
+		
+		Class<?> result = null;
+		
+		if(!jarFile.exists())
+		{
+			FileOutputStream jarFileStream = new FileOutputStream(jarFile);
+			
+			ZipOutputStream out = new ZipOutputStream(jarFileStream);
+		    out.putNextEntry(new ZipEntry("classes.dex"));
+		    byte[] dexData = new byte[(int)proxyFile.length()];
+		    FileInputStream fi = new FileInputStream(proxyFile);
+		    fi.read(dexData, 0, dexData.length);
+		    fi.close();
+		    out.write(dexData);
+		    out.closeEntry();
+		    out.close();
+		}
+		
+		DexClassLoader dexClassLoader = new DexClassLoader(jarFilePath, odexPath, null, this.context.getClassLoader());
+		result = dexClassLoader.loadClass(fullClassName);
+		
+		injectedProxyClasses.put(fullClassName, result);
+			
+		return result;
 	}
 	
 	public Class<?> findClass(String className) throws ClassNotFoundException
@@ -190,7 +173,7 @@ public class DexFactory
 			classToProxyFile += "-" + proxyThumb;
 		}
 		
-		String proxyFilePath = proxyPath + classToProxyFile + ".dex";
+		String proxyFilePath = dexPath + classToProxyFile + ".dex";
 		File proxyFile = new File(proxyFilePath);
 		if (proxyFile.exists())
 		{
@@ -246,7 +229,7 @@ public class DexFactory
 		}
 		
 		String oldProxyThumb = getCachedProxyThumb(proxyDir);
-		if (proxyThumb.equals(oldProxyThumb))
+		if (proxyThumb.equals(oldProxyThumb)) 
 		{
 			return;
 		}
@@ -254,11 +237,13 @@ public class DexFactory
 		if (oldProxyThumb != null)
 		{
 			purgeProxiesByThumb(oldProxyThumb, proxyDir);
+			purgeProxiesByThumb(oldProxyThumb, new File(odexPath));
 		}
 		else
 		{
-			//purge all dex files in proxy dir if no thumg file is found
-			purgeProxiesByThumb(".dex", proxyDir);
+			//purge all dex files in proxy dir if no thumb file is found
+			purgeProxiesByThumb("", proxyDir);
+			purgeProxiesByThumb("", new File(odexPath));
 		}
 		
 		saveNewProxyThumb(proxyThumb, proxyDir);
@@ -332,9 +317,9 @@ public class DexFactory
             }
             else
             {
-            	if (!filename.contains(cachedproxyThumb))
+            	if (cachedproxyThumb != "" && !filename.contains(cachedproxyThumb))
             	{
-            		return;
+            		continue;
             	}
             	
                 boolean b = purgeCandidate.delete();
