@@ -1,0 +1,22 @@
+{
+  "name": "automized_bindings_generation",
+  "version": "1.0.0",
+  "description": "This project parses given javascript dir and generates ns bindings if necessary",
+  "main": "gruntfile.js",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "grunt": "^0.4.5",
+    "grunt-cli": "^0.1.13",
+    "grunt-contrib-clean": "^0.6.0",
+    "grunt-contrib-copy": "^0.8.0",
+    "grunt-exec": "^0.4.6",
+    "grunt-mkdir": "^0.1.2"
+  },
+  "readme": "# Extend_Class_Generator\r\nThis project is an automatized build to generate all necessary extend bindings, form a nativescript project.\r\n\r\n## preparation\r\n- project expects you to put jars in JARS folder, so they can be parsed and all interfaces names extracted from them\r\n- project expects you to provide js user code in JSCODE\r\n- run 'npm install' to be able to run grunt\r\n\r\n## how to start\r\n- just run grunt\r\n- output will go in DIST folder, which will be in the project root dir if no other outDir is specified\r\n",
+  "readmeFilename": "README.md",
+  "_id": "automized_bindings_generation@1.0.0",
+  "_shasum": "9dfd7d36ca75b2faccfa3c9cd6fabe2b0415130c",
+  "_resolved": "./automized_bindings_generation-1.0.0.tgz",
+  "_from": "./automized_bindings_generation-1.0.0.tgz"
+}

@@ -1,0 +1,10 @@
+grunt --jarsDir=D:\work\!TEMP\TEST\test_app\lib\Android --inputDir=D:\work\!TEMP\aaaa\platforms\android\assets\app
+grunt --jarsDir=D:\work\!TEMP\TEST\test_app\lib\Android --inputDir=D:\work\android-runtime\test-app\assets\app
+
+
+//test app
+grunt --jarsDir=D:\work\!TEMP\TEST\test_app\lib\Android --inputDir=D:\work\android-runtime\test-app\assets\app
+
+
+//telerik_next
+grunt --jarsDir=D:\work\!TEMP\TEST\sample-TelerikNEXT\platforms\android/../../lib/Android --inputDir=D:\work\!TEMP\TEST\sample-TelerikNEXT\platforms\android/assets/app

@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="custom_logic_for_metadata_generation" default="-post-compile">
+    
+    <condition property="supportedJavaVersion">
+      <or>
+       <equals arg1="1.7" arg2="${ant.java.version}"/>
+       <equals arg1="1.8" arg2="${ant.java.version}"/>
+      </or>
+    </condition>
+    
+    <fail message="Java 1.7 or newer is required. Check if the JAVA_HOME environment variable points to JDK 1.7 or newer" unless="supportedJavaVersion"/>
+   
+    <property name="path_to_metadata" value="./assets/metadata"/>
+    <property name="ns.project.lib" value="${basedir}/../../lib/Android" />
+	<property name="inputDir" value="${basedir}/assets/app" />
+	<property name="outputDir" value="${basedir}/src" />
+	<property name="jarsDir" value="${ns.project.lib}" />
+	<property name="binding.generator" value="../../automized_bindings_generation" />
+	
+    <!-- passed by cli -->
+    <property name="ns.resources" value=""/>
+
+	<target name="create_project_lib" >
+	
+		<echo message="make lib/android folder" />
+		
+		<mkdir dir="${ns.project.lib}"/>
+		
+	</target>
+	
+	
+	<target name="copy_default_sdk" >
+	
+		<copy file="${ns.resources}/android.jar" todir="${ns.project.lib}"/>
+		
+	</target>
+
+    
+    <!-- GET MIN SDK VERSION FROM MANIFEST AND SAVE IN PROP "minSdkVersion" -->
+	<target name="retrieve_min_version_from_manifest">
+	
+		<xmlproperty file="./AndroidManifest.xml" collapseAttributes="true"/>
+		
+	    <property name="relative_path_to_min_declared_sdk" value="platforms/android-${manifest.uses-sdk.android:minSdkVersion}/android.jar" />
+		
+	</target>
+	
+	
+	<!-- DOES MIN SDK EXIST, AS DECLARED IN MANIFEST? -->
+	<target name="does_min_sdk_jar_exist" depends="retrieve_min_version_from_manifest">
+	    
+	    <available file="${sdk.dir}/${relative_path_to_min_declared_sdk}" property="minSdkJar.present"/>
+	   	
+	</target>
+
+	
+	<!-- REPLACE MIN SDK JAR WITH ONE ON USER MACHINE -->
+	<target name="replace_default_sdk_if_possible" depends="does_min_sdk_jar_exist" if="minSdkJar.present">
+	    	    
+		<delete file="${ns.project.lib}/android.jar"/>
+		
+	   	<copy file="${sdk.dir}/${relative_path_to_min_declared_sdk}" todir="${ns.project.lib}"/>
+	   	
+	</target>
+		
+	
+	<target name="copy_project_jars">
+	
+	    <copy todir="${ns.project.lib}" verbose="yes" flatten="yes" failonerror="no">    
+		
+		   <fileset dir="./libs">    
+			  <include name="*.jar" />    
+		   </fileset>    
+		   
+		</copy>
+	    
+	</target>
+	
+	<target name="copy_all_jars_to_lib" depends="create_project_lib, copy_default_sdk, replace_default_sdk_if_possible, copy_project_jars">
+	
+	</target>
+	
+	<!-- macrodef to run grunt synchronously with ant -->
+	<macrodef name="exec-node">
+		<attribute name="module" description="The name of the NodeJS module to execute"/>
+		<attribute name="failonerror" default="true" description="Fail if the exit code is not 0"/>
+		<element name="args" implicit="yes" description="Argument to pass to the exec task"/>
+		<sequential>
+			<exec executable="cmd.exe" failonerror="@{failonerror}" osfamily="winnt" dir="${binding.generator}" >
+				<arg line="/c  @{module}" />
+				<args/>
+
+				<!-- Windows cmd output workaround-->
+				<!-- Forces node's stderror and stdout to a temporary file -->
+				<arg line=" &gt; _tempfile.out 2&lt;&amp;1"/>
+
+				<!-- If command exits with an error, then output the temporary file        -->
+				<!-- to stdout delete the temporary file and finally exit with error level 1  -->
+				<!-- so that the apply task can catch the error if @failonerror="true"        -->
+				<arg line=" || (type _tempfile.out &amp; del _tempfile.out &amp; exit /b 1)"/>
+
+				<!-- Otherwise, just type the temporary file and delete it-->
+				<arg line=" &amp; type _tempfile.out &amp; del _tempfile.out &amp;"/>
+			</exec>
+			<exec executable="@{module}" failonerror="@{failonerror}" osfamily="unix">
+				<args/>
+			</exec>
+		</sequential>
+	</macrodef>
+	
+	<!-- calling grunt with 3 arguments if node module with optimizations exists -->
+    <target name="generate_bindings_aot" if="${dir.exists}" >
+	
+		<exec-node module="grunt">
+		
+			<arg value="--outDir=${outputDir}"/>
+			<arg value="--inputDir=${inputDir}"/>
+			<arg value="--jarsDir=${jarsDir}"/>
+			
+		</exec-node>
+		
+    </target>
+	
+	
+	<target name="dir.check">
+	
+		<available file="${binding.generator}" type="dir" property="dir.exists"/>
+		
+	</target>
+	
+	
+	<!-- delete generated bindings if any -->
+	<target name="clean_src_dir">
+		<delete dir="./src/com"/>
+	</target>
+	
+	
+	<target name="-pre-compile" depends="copy_all_jars_to_lib, clean_src_dir, dir.check, generate_bindings_aot"> 
+	
+    </target>
+
+	
+	<target name="delete_old_metadata">
+	
+		 <delete>
+		 
+		  	<fileset dir="${path_to_metadata}" includes="**/*.dat"/>
+			
+		</delete>
+		
+	</target>
+	
+	
+    <!-- PASS JARS TO METADATA GENERATOR -->
+    <target name="generate_metadata_from_given_jars" depends="delete_old_metadata">
+        
+	    <java jar="${ns.resources}/metadata-generator.jar"
+			     fork="true"
+			     failonerror="true"
+			     maxmemory="128m">
+				 
+			<arg value="${ns.project.lib}"></arg>
+			
+			<arg value="${path_to_metadata}"></arg>
+			
+		</java>
+		
+		<echo message=" --------- created new metadata and moved it to assets/metadata" />
+		
+    </target>
+        
+    <target name="-post-compile" depends="generate_metadata_from_given_jars">
+		
+	</target>
+    
+</project> 

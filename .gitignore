@@ -2,6 +2,11 @@
 node_modules/
 dist/
 
+automized_extend_class_generator/DIST
+automized_extend_class_generator/node_modules
+automized_extend_class_generator/_ast_parser/node_modules
+automized_extend_class_generator/_ast_parser/bindings.txt
+
 local.properties
 
 gen/
