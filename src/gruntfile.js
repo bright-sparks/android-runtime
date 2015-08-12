@@ -47,7 +47,7 @@ module.exports = function(grunt) {
                     "./armeabi-v7a/libNativeScript.so",
                     "./x86/libNativeScript.so"
                 ],
-                dest: pathModule.join(localCfg.outDir, "libs") + "/"
+                dest: pathModule.join(localCfg.outDir, "libs/jni/") + "/"
             },
             updateVersionFile: {
                 expand: true,

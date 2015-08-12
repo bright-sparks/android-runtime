@@ -170,11 +170,35 @@ module.exports = function(grunt) {
                 ],
                 dest: pathModule.join(outDir, "framework") + "/"
             },
+			gradleTemplateProject: {
+				expand: true,
+                dot: true,
+                cwd: pathModule.join(rootDir, "build/project-template-gradle"),
+                src: [
+                    "**/*.*"
+                ],
+                dest: pathModule.join(outDir, "framework") + "/"
+			},
+			internalFolderToGradleProject: {
+                expand: true,
+                cwd: pathModule.join(rootDir, "src/assets"),
+                src: ["internal/**/*.*"],
+                dest: pathModule.join(outDir, "framework/src/main/assets") + "/"
+            },
             internalFolder: {
                 expand: true,
                 cwd: pathModule.join(rootDir, "src/assets"),
                 src: ["internal/**/*.*"],
                 dest: pathModule.join(outDir, "framework/assets") + "/"
+            },
+			collectRuntimeToGradleProject: {
+                expand: true,
+                cwd: localCfg.runtimeBinariesDir,
+                src: [
+                    "**/*.*",
+                    "jni/**/*"
+                ],
+                dest: outDir + "/framework/"
             },
             collectRuntime: {
                 expand: true,
@@ -322,14 +346,16 @@ module.exports = function(grunt) {
     grunt.registerTask("default", [
                             "clean:build",
                             "mkdir:build",
-                            "copy:templateProject",
-                            "copy:internalFolder",
-                            "copy:pkgDef",
+                            //"copy:templateProject",
+							"copy:gradleTemplateProject",
+                            //"copy:internalFolder",
+							"copy:internalFolderToGradleProject",
+                            "copy:pkgDef", //optional for gradle
                             "generateRuntime",
                             "buildMetadataGenerator",
-                            "generateMetadata",
+                            //"generateMetadata",
                             "copy:collectRuntime",
-                            "copy:collectLibs",
+                            //"copy:collectLibs",
                             //"copy:collectBindings",
                             "exec:npmPack"
             ]);
