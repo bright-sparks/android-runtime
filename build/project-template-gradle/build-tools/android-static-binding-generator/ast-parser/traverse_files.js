@@ -42,7 +42,7 @@ var classNamesNeedExtending = [];
 var filesToTraverse = [];
 var interfaceNames = [];
 var javaSeparator = '_';
-var fileSeparator = javaSeparator + 'f';// + javaSeparator + javaSeparator;
+var fileSeparator = javaSeparator + 'f';
 var lineSeparator = javaSeparator + 'l';
 var columnSeparator = javaSeparator + 'c';
 var customClassNameSeparator = javaSeparator + javaSeparator;
@@ -72,7 +72,6 @@ function traverseFolder(inputFolder){
 			//TODO: think how to fix circular reference problem 
 			if(currentFileName.indexOf('easysax.js') == -1) { //exception because of maximum call stack exceeded (circular reference)
 				filesToTraverse.push(currentFileName);
-				console.log(currentFileName);
 			}
 		}
 	  })
@@ -136,14 +135,14 @@ function checkPattern(node, fullFilename){
 		var overridenMethods;
 		
 		if(node.expression) {
-		
+			
 			className  = extractFullNodeName(node);
 			overridenMethods = getOverridenMethods(node);
-			
+						
 			var fullLocationOfFile = fileSeparator + getFilename(fullFilename);
 			fullLocationOfFile += lineSeparator + (parseInt(node.expression.end.line));// + LINE_OFFSET);
 			
-			//check if this expression is an interface (PATTERN)
+			//check if this expression is an INTERFACE (PATTERN)
 			if(node.start.value == 'new') {
 				
 				for(var index in interfaceNames) {
@@ -155,7 +154,6 @@ function checkPattern(node, fullFilename){
 						className += customClassNameSeparator + customExtendClassName;
 						
 						if(!nameContainsInvalidSymbols(customExtendClassName)) {
-							console.log(className);
 							var lineToWrite = className + ' ' + overridenMethods.join();
 							appendToFile(lineToWrite);
 							return;
@@ -164,33 +162,58 @@ function checkPattern(node, fullFilename){
 				}
 			}
 				
-			//check if expression is extended class (PATTERN)
+			//check if expression is an EXTEND CLASS (PATTERN)
 			if(node.expression.property == 'extend') {
 				customExtendClassName = getExtendedClassName(node);
-				fullLocationOfFile += columnSeparator + (parseInt(node.expression.end.endcol) - CLASS_COLUMN_OFFSET);
-				className += fullLocationOfFile;
-				className += customClassNameSeparator + customExtendClassName;
+				
+				lineToWrite = "";
+				
+				if(customExtendClassName && customExtendClassName.substr(0, 2) == "V_") {
+					className += fileSeparator;
+					className += customClassNameSeparator;
+					className += customExtendClassName.substr(2);
+				}
+				else{
+					fullLocationOfFile += columnSeparator + (parseInt(node.expression.end.endcol) - CLASS_COLUMN_OFFSET);
+					className += fullLocationOfFile;
+					className += customClassNameSeparator;
+					className += customExtendClassName;	
+				}
 				
 				if(!nameContainsInvalidSymbols(customExtendClassName)) {// && className.indexOf('com.tns.tests') == -1) { //binding generator takes care of this
-					var lineToWrite = className + ' ' + overridenMethods.join();
-					console.log(className);
+					lineToWrite = className + ' ' + overridenMethods.join();
+					
 					appendToFile(lineToWrite);
 					return;
 				}
 			}
 			
-			// check if expression is extended typescript class (PATTERN)
+			// check if expression is extended TYPESCRIPT CLASS (PATTERN)
 			var isValidExtendCandidate = false;
 			if(node.expression.body) {
 				for(var index in node.expression.body){
 					var currentAstToken = node.expression.body[index];
+					
 					if(currentAstToken.body) {
+						
+						//check if class is decorated (EXTEND ACTIVITY)
+						if(currentAstToken.body.right) {
+							if(currentAstToken.body.right.expression) {
+								if(currentAstToken.body.right.expression.name == "__decorate") {
+									if(currentAstToken.body.right.args[0].elements[0].expression && currentAstToken.body.right.args[0].elements[0].expression.name == "UserDefined") {
+										var extendClassName = currentAstToken.body.right.args[0].elements[0].args[0].value;
+										extendClassName = extendClassName.substr(2);
+									}
+								}
+							}
+						}
+
 						if(currentAstToken.body.expression) {
 							
-							// the function "__extends" is the way typescript extensions are done
+							// check for typescript __extends
 							if( currentAstToken.body.expression.name == '__extends') {						
 								
-								// get class name to extend from what's passed to iife
+								// get super class name... the class that will be extended (from what's passed to iife)
 								className = extractFullNodeName(node.args[0]);
 								
 								// get return type of iife
@@ -204,7 +227,7 @@ function checkPattern(node, fullFilename){
 									}
 								}
 								
-								// find overriden methods from top node
+								// find overriden methods
 								for(var i in node.expression.body) {			
 									var possibleOverridenMethod = node.expression.body[i];
 									if(possibleOverridenMethod.body) {
@@ -225,13 +248,20 @@ function checkPattern(node, fullFilename){
 					}
 				}
 				if(isValidExtendCandidate) {
-					var extendLocation = '_frnal_prepareExtend_l60_c37__';
-					className += extendLocation;
-					className += customExtendClassName;
+					if(extendClassName) {
+						className += fileSeparator;
+						className += customClassNameSeparator;
+						className += extendClassName;
+					}
+					else{
+						var extendLocation = '_frnal_prepareExtend_l60_c37'+ customClassNameSeparator;
+						className += extendLocation;
+						className += customExtendClassName;	
+					}
+					
 					if(!nameContainsInvalidSymbols(customExtendClassName)) {
 						if(customExtendClassName) {
 							var lineToWrite = className + ' ' + overridenMethods.join();
-							console.log(className);
 							appendToFile(lineToWrite);
 							return;
 						}
@@ -251,6 +281,7 @@ function getExtendingCtorName(node) {
 	}
 }
 
+//invalid as in invalid for java class name (according to spec java 1.6 spec)
 function nameContainsInvalidSymbols(name) {
 	for(var index in name) {
 		if(!(name[index] >= 'a' && name[index] <= 'z') &&
@@ -275,7 +306,7 @@ function getFilename(fullFilename){
 		finalFilename = fullFilename.substring(startIndex, endIndexWithoutAndroid);
 	}
 	
-	finalFilename = finalFilename.replace(/[-/]/g, javaSeparator); //replace ['/', '-'] ---> with '_'
+	finalFilename = finalFilename.replace(/[-/]/g, javaSeparator);
 	
 	return finalFilename;
 }
@@ -283,12 +314,7 @@ function getFilename(fullFilename){
 function extractFullNodeName(node) {
 	var expressionArr = [];
 	
-	// if(node) {
-		getNameInfo(node, expressionArr);
-	// }
-	// else {
-		// getNameInfo(node.expression, expressionArr);
-	// }
+	getNameInfo(node, expressionArr);
 	
 	expressionArr.reverse();
 	var resultString = expressionArr.join('.');
@@ -323,7 +349,6 @@ function getOverridenMethodsNames(argumentsNode, overridenMethods) {
 }
 
 function getExtendedClassName(node) {
-	
 	var customExtendClassName = "";
 	
 	if(node.args) {

@@ -28,6 +28,8 @@ public class JarLister {
 	private static HashMap<String, HashSet<String>> overridenClasses = new HashMap<String, HashSet<String>>();
 	private static NSClassLoader loader;
 	private static String LOCATION_SEPARATOR = "_f";
+	private static String CUSTOM_CLASS_SEPARATOR = "__";
+	private static String USER_DEFINED_SEPARATOR = LOCATION_SEPARATOR + CUSTOM_CLASS_SEPARATOR;
 
 	private static class MethodNameComparator implements Comparator<Method> {
 		@Override
@@ -142,10 +144,10 @@ public class JarLister {
 
 	private static String getLocationOfClass(String key) {
 		String extendLocation = null;
-
+		
 		int indexOfFileSeparator = key.indexOf(LOCATION_SEPARATOR);
 		extendLocation = key.substring(indexOfFileSeparator);
-
+		
 		return extendLocation;
 	}
 
@@ -157,7 +159,17 @@ public class JarLister {
 			fullClassName = enclosingClassName.getSimpleName() + "_" + clazz.getSimpleName();
 		}
 		String fileLocation = getLocationOfClass(key);
-		return fullClassName + fileLocation;
+		
+		String result = null;
+		int inexOfUserDefinedSeparator = key.indexOf(USER_DEFINED_SEPARATOR);
+		if(inexOfUserDefinedSeparator == -1) {
+			result = fullClassName + fileLocation;
+		}
+		else {
+			result = key.substring(inexOfUserDefinedSeparator + USER_DEFINED_SEPARATOR.length());
+		}
+		
+		return result;
 	}
 
 	private static boolean checkForPublicSignatureTypes(Class<?>[] params) {
@@ -1007,7 +1019,9 @@ public class JarLister {
 				try {
 					Class<?> clazz = Class.forName(className, false, loader);
 					generateJavaBindings(clazz, outDir);
-				} catch (NoClassDefFoundError e) {
+				//error when trying to link incompatible jars (think about how to fix)
+				// e.g. when one jar tries to read from missing class or method
+				} catch (NoClassDefFoundError e) { 
 					System.out.println("No deffinition could be found for: " + e.getMessage());
 					continue;
 				} finally {

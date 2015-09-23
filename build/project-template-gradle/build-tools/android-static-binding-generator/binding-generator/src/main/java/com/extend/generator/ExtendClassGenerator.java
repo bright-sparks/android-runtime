@@ -82,12 +82,12 @@ private static HashMap<String, HashSet<String>> ReadProxyNames(String bindingsPa
 			}
 		}
 		
-		for(String key : result.keySet()) {
-			System.out.println(key);
-			for(String mn : result.get(key)){
-				System.out.println("   " + mn);
-			}
-		}
+		// for(String key : result.keySet()) {
+		// 	System.out.println(key);
+		// 	for(String mn : result.get(key)){
+		// 		System.out.println("   " + mn);
+		// 	}
+		// }
 
 		//Close the input stream
 		br.close();
